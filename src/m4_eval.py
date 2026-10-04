@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from math import isfinite
 
 if hasattr(sys.stdout, "reconfigure"):
@@ -134,15 +134,20 @@ def failure_analysis(eval_results: list[EvalResult], bottom_n: int = 10) -> list
 
 
 def save_report(results: dict, failures: list[dict], path: str = "reports/ragas_report.json"):
-    """Save evaluation report to JSON. (Đã implement sẵn)"""
+    """Save aggregate scores, per-question evidence and failures to JSON."""
     parent_dir = os.path.dirname(path)
     if parent_dir:
         os.makedirs(parent_dir, exist_ok=True)
     report = {
-        "aggregate": {k: v for k, v in results.items() if k != "per_question"},
+        "aggregate": {name: results.get(name, 0.0) for name in METRIC_NAMES},
         "num_questions": len(results.get("per_question", [])),
+        "per_question": [asdict(item) for item in results.get("per_question", [])],
         "failures": failures,
     }
+    if "error" in results:
+        report["error"] = results["error"]
+    if "latency" in results:
+        report["latency"] = results["latency"]
     with open(path, "w", encoding="utf-8") as f:
         json.dump(report, f, ensure_ascii=False, indent=2)
     print(f"Report saved to {path}")

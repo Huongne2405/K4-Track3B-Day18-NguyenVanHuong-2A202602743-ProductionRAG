@@ -5,7 +5,10 @@ Basic = paragraph chunking + dense-only search (không hybrid, không rerank, kh
 Đây là RAG đã học ở buổi trước — hôm nay sẽ cải thiện từng bước.
 """
 
-import sys, os, time
+import os
+import sys
+import time
+
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 if hasattr(sys.stderr, "reconfigure"):
@@ -13,10 +16,10 @@ if hasattr(sys.stderr, "reconfigure"):
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from src.m1_chunking import load_documents, chunk_basic
-from src.m2_search import DenseSearch
-from src.m4_eval import load_test_set, evaluate_ragas, save_report
 from config import NAIVE_COLLECTION
+from src.m1_chunking import chunk_basic, load_documents
+from src.m2_search import DenseSearch
+from src.m4_eval import evaluate_ragas, load_test_set, save_report
 
 
 def main():
@@ -51,12 +54,13 @@ def main():
         if llm_client and contexts:
             try:
                 context_str = "\n\n".join(contexts)
-                resp = llm_client.chat.completions.create(model="gpt-4o-mini", messages=[
+                resp = llm_client.chat.completions.create(model="gpt-4o-mini", temperature=0, messages=[
                     {"role": "system", "content": "Trả lời CHỈ dựa trên context. Nếu không có → nói 'Không tìm thấy.'"},
                     {"role": "user", "content": f"Context:\n{context_str}\n\nCâu hỏi: {item['question']}"},
                 ])
                 answer = resp.choices[0].message.content
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 -- Preserve retrieved context when the API fails.
+                print(f"  ⚠️  Baseline answer generation failed: {exc}", flush=True)
                 answer = contexts[0]
         else:
             answer = contexts[0] if contexts else "Không tìm thấy."
@@ -72,6 +76,11 @@ def main():
     for m in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
         print(f"  {m}: {results.get(m, 0):.4f}")
     save_report(results, [], path="reports/naive_baseline_report.json")
+    search.client.close()
+    if llm_client is not None:
+        llm_client.close()
+    if "error" in results:
+        raise RuntimeError(f"Baseline evaluation failed: {results['error']}")
     if all(results.get(m, 0) == 0 for m in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]):
         print("\n💡 Lưu ý: Điểm baseline hiển thị 0.00 là bình thường khi chưa hoàn thiện M2 (Dense Search) và M4 (Eval).")
         print("   Sau khi bạn implement xong các module, hãy chạy 'python main.py' để tự động cập nhật baseline thật và so sánh.")
