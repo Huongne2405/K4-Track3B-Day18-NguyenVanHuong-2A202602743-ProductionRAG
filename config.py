@@ -1,6 +1,7 @@
 """Shared configuration for Lab 18."""
 
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -27,6 +28,7 @@ SEMANTIC_THRESHOLD = 0.85
 BM25_TOP_K = 20
 DENSE_TOP_K = 20
 HYBRID_TOP_K = 20
+RRF_K = 60
 RERANK_TOP_K = 3
 
 # --- Paths ---
